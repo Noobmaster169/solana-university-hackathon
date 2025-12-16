@@ -1,0 +1,53 @@
+# Keystore Project - Cursor AI Rules
+
+## Project Overview
+This is a hackathon project implementing a passkey-based Solana wallet using the secp256r1 precompile.
+
+## Code Style
+
+### Rust (Solana Program)
+- Follow Anchor framework conventions
+- Use descriptive error messages
+- Add comments for complex cryptography
+- Keep functions focused and testable
+
+### TypeScript (Frontend)
+- Use TypeScript for all files
+- Prefer functional components with hooks
+- Use async/await over promises
+- Add JSDoc comments for exported functions
+
+## Important Notes
+
+### Program ID Management
+After deployment, update program ID in THREE places:
+1. programs/keystore/src/lib.rs (declare_id! macro)
+2. app/src/lib/keystore.ts (PROGRAM_ID constant)
+3. Anchor.toml (programs.devnet.keystore)
+
+### WebAuthn Requirements
+- Requires HTTPS (localhost OK for dev)
+- Needs device with biometrics or security key
+- Browser must support WebAuthn API
+
+### PDA Seeds
+- Identity: ["identity", owner_pubkey]
+- Vault: ["vault", identity_pubkey]
+
+### Security Considerations
+- Keys stored in secure enclave
+- Nonce prevents replay attacks
+- Multi-sig for high-value transactions
+- Signatures verified on-chain via secp256r1 precompile
+
+## Testing
+- Run `anchor test` for program tests
+- Test frontend on multiple browsers
+- Verify WebAuthn works on target devices
+
+## Documentation
+Keep documentation up to date:
+- Update README for new features
+- Add inline comments for complex logic
+- Update ARCHITECTURE.md for design changes
+
