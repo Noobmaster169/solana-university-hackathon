@@ -120,22 +120,22 @@ export default function Home() {
       const lamports = Math.floor(parseFloat(sendAmount) * 1e9);
       const to = new PublicKey(sendTo);
       
-      // Get current nonce
+      // Fetch current nonce from identity account
       const identityAccount = await client.getIdentity(identity);
-      const nonce = identityAccount?.nonce || 0;
+      if (!identityAccount) throw new Error("Identity account not found");
       
-      // Sign with passkey
-      const message = client.buildMessage({ type: "send", to, lamports }, nonce);
+      // Build message with current nonce and sign with passkey
+      const message = client.buildMessage({ type: "send", to, lamports }, identityAccount.nonce);
       const signature = await signWithPasskey(
         new Uint8Array(stored.credentialId),
         message
       );
       
+      // Execute transaction (nonce is fetched automatically inside)
       await client.execute(identity, vault, {
         type: "send",
         to,
         lamports,
-        nonce,
         pubkey: new Uint8Array(stored.publicKey),
         signatures: [{ keyIndex: 0, signature }],
       });
