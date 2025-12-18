@@ -46,7 +46,7 @@ export async function createPasskey(username: string): Promise<PasskeyCredential
 export async function signWithPasskey(
   credentialId: Uint8Array,
   message: Uint8Array
-): Promise<Uint8Array> {
+): Promise<{ signature: Uint8Array; authenticatorData: Uint8Array; clientDataJSON: Uint8Array }> {
   // Hash the message to 32 bytes for the challenge
   const msgHash = await crypto.subtle.digest("SHA-256", message);
   
@@ -64,7 +64,12 @@ export async function signWithPasskey(
   }) as PublicKeyCredential;
   
   const response = credential.response as AuthenticatorAssertionResponse;
-  return derToRaw(new Uint8Array(response.signature));
+  
+  return {
+    signature: derToRaw(new Uint8Array(response.signature)),
+    authenticatorData: new Uint8Array(response.authenticatorData),
+    clientDataJSON: new Uint8Array(response.clientDataJSON),
+  };
 }
 
 function extractPublicKey(spki: ArrayBuffer): Uint8Array {

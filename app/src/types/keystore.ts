@@ -207,6 +207,10 @@ export type Keystore = {
               }
             }
           }
+        },
+        {
+          "name": "signedData",
+          "type": "bytes"
         }
       ]
     },
@@ -357,6 +361,11 @@ export type Keystore = {
       "code": 6010,
       "name": "insufficientFunds",
       "msg": "Insufficient funds"
+    },
+    {
+      "code": 6011,
+      "name": "invalidClientData",
+      "msg": "Invalid client data JSON"
     }
   ],
   "types": [
