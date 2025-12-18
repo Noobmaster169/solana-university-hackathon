@@ -14,6 +14,14 @@ const nextConfig = {
     };
     return config;
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "**", // Allow all hosts
+      },
+    ],
+  },
 };
 
 module.exports = nextConfig;
