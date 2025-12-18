@@ -18,25 +18,32 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config libssl-dev libudev-dev wget bzip2
 
-      - name: Install Rust 1.79
-        uses: dtolnay/rust-toolchain@1.79.0
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Download Solana 2.0.3
+      - name: Download Agave 2.1.6
         run: |
-          # Solana 2.0.x uses Rust 1.79 which is compatible with borsh 1.6
-          wget -q https://github.com/anza-xyz/agave/releases/download/v2.0.3/solana-release-x86_64-unknown-linux-gnu.tar.bz2 -O solana.tar.bz2
+          # Try latest Agave which should have newer Rust
+          wget -q https://github.com/anza-xyz/agave/releases/download/v2.1.6/solana-release-x86_64-unknown-linux-gnu.tar.bz2 -O solana.tar.bz2
           tar -xjf solana.tar.bz2
           mkdir -p $HOME/.local/share/solana/install/active_release
           cp -r solana-release/* $HOME/.local/share/solana/install/active_release/
           rm -rf solana-release solana.tar.bz2
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
-      - name: Verify tools
+      - name: Check bundled Rust version
         run: |
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          echo "=== Solana version ==="
           solana --version
+          echo ""
+          echo "=== cargo-build-sbf version ==="
           cargo-build-sbf --version
-          rustc --version
+          echo ""
+          echo "=== Checking platform-tools Rust version ==="
+          # The bundled rustc is what matters
+          ls -la $HOME/.local/share/solana/install/active_release/bin/sdk/sbf/dependencies/platform-tools/rust/bin/ 2>/dev/null || echo "Checking alt location..."
+          find $HOME/.local/share/solana -name "rustc" -type f 2>/dev/null | head -3
 
       - name: Build program
         run: |
