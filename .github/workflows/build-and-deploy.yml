@@ -1,4 +1,4 @@
-name: Build and Deploy to Devnet
+name: Build Solana Program
 
 on:
   push:
@@ -7,100 +7,67 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build with Docker
+      - name: Install dependencies
         run: |
-          docker run --rm \
-            -v "$PWD":/workspace \
-            -w /workspace \
-            --user root \
-            ghcr.io/coral-xyz/anchor-cli:0.30.1 \
-            bash -c "
-              set -ex
-              
-              # Show versions
-              echo '=== Tool Versions ==='
-              rustc --version
-              cargo --version
-              solana --version || echo 'Solana not in container'
-              anchor --version
-              
-              # Install Solana if needed
-              if ! command -v solana &> /dev/null; then
-                echo 'Installing Solana...'
-                sh -c \"\$(curl -sSfL https://release.anza.xyz/v2.0.18/install)\"
-                export PATH=\"\$HOME/.local/share/solana/install/active_release/bin:\$PATH\"
-              fi
-              
-              echo '=== Starting Build ==='
-              anchor build --skip-lint 2>&1 | tee build.log || {
-                echo '=== Build Failed ==='
-                echo 'Build log:'
-                cat build.log
-                echo ''
-                echo 'Trying cargo-build-sbf directly...'
-                
-                if command -v cargo-build-sbf &> /dev/null; then
-                  cd programs/keystore
-                  cargo-build-sbf --sbf-out-dir ../../target/deploy
-                else
-                  echo 'cargo-build-sbf not available, build failed'
-                  exit 1
-                fi
-              }
-              
-              echo '=== Build Results ==='
-              ls -lah target/deploy/ || echo 'No deploy directory'
-              find target -name '*.so' -type f || echo 'No .so files found'
-              
-              # Fix permissions
-              chmod -R 777 target/deploy/ || true
-            "
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libssl-dev
 
-      - name: Verify build output
-        run: |
-          echo "Checking for built files..."
-          ls -lah target/deploy/ || echo "Deploy directory not found"
+      - name: Install Rust 1.75
+        uses: dtolnay/rust-toolchain@1.75.0
+        
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: cargo-registry-${{ hashFiles('**/Cargo.lock') }}
           
-          if [ -f target/deploy/keystore.so ]; then
-            echo "✓ Program built successfully!"
-            ls -lh target/deploy/keystore.so
-          else
-            echo "✗ Program file not found"
-            echo "Searching entire target directory:"
-            find target -name "*.so" -type f 2>/dev/null || echo "No .so files anywhere"
-            exit 1
-          fi
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Upload artifacts
+      - name: Install Solana 1.18.17
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v1.18.17/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          solana --version
+          cargo-build-sbf --version
+
+      - name: Build program
+        run: |
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          cd programs/keystore
+          cargo-build-sbf --sbf-out-dir ../../target/deploy
+          
+      - name: Show build results
+        run: |
+          echo "=== Build Complete ==="
+          ls -lah target/deploy/
+          echo ""
+          echo "Program keypair:"
+          solana-keygen pubkey target/deploy/keystore-keypair.json
+
+      - name: Upload program
         uses: actions/upload-artifact@v4
-        if: success()
         with:
           name: solana-program
           path: |
-            target/deploy/*.so
-            target/deploy/*.json
-          retention-days: 30
-
-      - name: Show deployment info
-        if: success()
+            target/deploy/keystore.so
+            target/deploy/keystore-keypair.json
+          
+      - name: Success message
         run: |
-          echo "==================================="
+          echo "========================================="
           echo "✓ BUILD SUCCESSFUL!"
-          echo "==================================="
+          echo "========================================="
           echo ""
-          echo "Download the 'solana-program' artifact above"
-          echo ""
-          echo "To deploy:"
+          echo "Download the artifact above and deploy:"
           echo "  solana program deploy keystore.so"
-          echo ""
-          echo "Program ID:"
-          cat target/deploy/keystore-keypair.json | grep -o '"[^"]*"' | head -1 || echo "See keypair file"
