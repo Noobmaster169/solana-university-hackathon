@@ -5,6 +5,7 @@ import { Connection, PublicKey, clusterApiUrl } from "@solana/web3.js";
 import { Fingerprint, Plus, Send, Shield, Loader2, Copy, ExternalLink, CheckCircle2 } from "lucide-react";
 import { createPasskey, signWithPasskey, getStoredCredential, storeCredential } from "@/lib/passkey";
 import { KeystoreClient, getIdentityPDA, getVaultPDA } from "@/lib/keystore";
+import { createIdentity, parseCreateIdentityResponse } from "@/lib/api";
 import { formatAddress, lamportsToSOL } from "@/lib/solana";
 
 const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
@@ -86,18 +87,22 @@ export default function Home() {
         credentialIdLength: credential.credentialId.length,
       });
       
-      // Create identity on-chain
-      console.log("Creating identity on-chain...");
-      const client = new KeystoreClient(connection);
+      // Create identity on-chain via API
+      console.log("Creating identity on-chain via API...");
+      console.log("Public key length:", credential.publicKey.length);
       
+      // Validate public key is 33 bytes
+      if (credential.publicKey.length !== 33) {
+        throw new Error(`Invalid public key length: expected 33 bytes, got ${credential.publicKey.length}`);
+      }
+
       try {
-        const { tx, identity: newIdentity, vault: newVault } = await client.createIdentity(
-          credential.publicKey,
-          deviceName
-        );
+        const response = await createIdentity(credential.publicKey, deviceName);
+        console.log("Identity created on-chain:", response);
+        const { identity: newIdentity, vault: newVault, signature } = parseCreateIdentityResponse(response);
         
         console.log("Identity created:", {
-          tx,
+          tx: signature,
           identity: newIdentity.toBase58(),
           vault: newVault.toBase58(),
         });
@@ -115,11 +120,11 @@ export default function Home() {
         setStatus("connected");
         setSuccess("Wallet created successfully!");
         setTimeout(() => setSuccess(null), 5000);
-      } catch (txError: any) {
-        console.error("Transaction error:", txError);
+      } catch (apiError: any) {
+        console.error("API error:", apiError);
         
         // Check if it's a funding issue
-        if (txError.message?.includes("debit") || txError.message?.includes("credit") || txError.message?.includes("airdrop")) {
+        if (apiError.message?.includes("debit") || apiError.message?.includes("credit") || apiError.message?.includes("airdrop")) {
           throw new Error(
             "⚠️ Devnet Setup Required\n\n" +
             "The Solana program needs to be deployed and funded on devnet.\n\n" +
@@ -132,7 +137,7 @@ export default function Home() {
           );
         }
         
-        throw txError;
+        throw apiError;
       }
     } catch (e: any) {
       console.error("Failed to create wallet:", e);

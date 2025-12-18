@@ -92,28 +92,7 @@ export type Keystore = {
         },
         {
           "name": "identity",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  105,
-                  100,
-                  101,
-                  110,
-                  116,
-                  105,
-                  116,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "payer"
-              }
-            ]
-          }
+          "writable": true
         },
         {
           "name": "vault",

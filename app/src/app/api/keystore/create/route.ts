@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { KeystoreClient } from '@/lib/keystore-client';
+import { CreateIdentityRequest, CreateIdentityResponse } from '@/types/api';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body: CreateIdentityRequest = await request.json();
     const { pubkey, deviceName } = body;
 
     if (!pubkey) {
@@ -17,6 +18,14 @@ export async function POST(request: NextRequest) {
     if (!deviceName) {
       return NextResponse.json(
         { error: 'deviceName is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate pubkey is 33 bytes
+    if (!Array.isArray(pubkey) || pubkey.length !== 33) {
+      return NextResponse.json(
+        { error: 'pubkey must be a 33-byte array (secp256r1 compressed format)' },
         { status: 400 }
       );
     }
@@ -37,32 +46,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let publicKey: PublicKey;
-    try {
-      publicKey = new PublicKey(pubkey);
-    } catch (error) {
-      return NextResponse.json(
-        { error: 'Invalid public key format' },
-        { status: 400 }
-      );
-    }
+    // Convert number array to Uint8Array
+    const pubkeyBytes = new Uint8Array(pubkey);
 
     const connection = new Connection(rpcUrl, 'confirmed');
     const keystoreClient = new KeystoreClient(connection);
 
-    const signature = await keystoreClient.createIdentityTx(publicKey, deviceName);
+    const signature = await keystoreClient.createIdentityTx(pubkeyBytes, deviceName);
 
-    const identityPDA = keystoreClient.getIdentityPDA(publicKey);
+    const identityPDA = keystoreClient.getIdentityPDA(pubkeyBytes);
     const vaultPDA = keystoreClient.getVaultPDA(identityPDA);
 
-    return NextResponse.json({
+    const res: CreateIdentityResponse = {
       success: true,
       signature,
       identityPDA: identityPDA.toBase58(),
       vaultPDA: vaultPDA.toBase58(),
-      pubkey: publicKey.toBase58(),
+      pubkey: Buffer.from(pubkeyBytes).toString('base64'),
       deviceName,
-    });
+    };
+    return NextResponse.json(res);
   } catch (error) {
     console.error('Error creating identity:', error);
     return NextResponse.json(
