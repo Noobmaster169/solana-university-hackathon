@@ -23,7 +23,6 @@ jobs:
 
       - name: Download Agave 2.1.6
         run: |
-          # Try latest Agave which should have newer Rust
           wget -q https://github.com/anza-xyz/agave/releases/download/v2.1.6/solana-release-x86_64-unknown-linux-gnu.tar.bz2 -O solana.tar.bz2
           tar -xjf solana.tar.bz2
           mkdir -p $HOME/.local/share/solana/install/active_release
@@ -31,19 +30,18 @@ jobs:
           rm -rf solana-release solana.tar.bz2
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
-      - name: Check bundled Rust version
+      - name: Downgrade indexmap for Rust 1.79 compatibility
         run: |
-          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-          echo "=== Solana version ==="
-          solana --version
-          echo ""
-          echo "=== cargo-build-sbf version ==="
-          cargo-build-sbf --version
-          echo ""
-          echo "=== Checking platform-tools Rust version ==="
-          # The bundled rustc is what matters
-          ls -la $HOME/.local/share/solana/install/active_release/bin/sdk/sbf/dependencies/platform-tools/rust/bin/ 2>/dev/null || echo "Checking alt location..."
-          find $HOME/.local/share/solana -name "rustc" -type f 2>/dev/null | head -3
+          # Generate lockfile first
+          cargo generate-lockfile
+          
+          # indexmap 2.7+ requires Rust 1.82, downgrade to 2.6.0 (last version supporting 1.79)
+          echo "Downgrading indexmap to 2.6.0..."
+          cargo update -p indexmap@2.12.1 --precise 2.6.0 || cargo update -p indexmap --precise 2.6.0
+          
+          # Verify
+          echo "=== indexmap version ==="
+          grep -A2 'name = "indexmap"' Cargo.lock | head -6
 
       - name: Build program
         run: |
