@@ -6,7 +6,6 @@ import {
   TransactionInstruction,
   Keypair,
   Transaction,
-  sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import { Address, BN } from "@coral-xyz/anchor";
 import keystoreIdl from "@/idl/keystore.json";
@@ -71,15 +70,57 @@ export class KeystoreClient extends ProgramClient<Keystore> {
                 })
                 .instruction();
 
-            const blockhash = (await this.connection.getLatestBlockhash()).blockhash;
-            const transaction = new Transaction({feePayer: actualPayer.publicKey, recentBlockhash: blockhash})
-                .add(createIx);
-            const sig = await sendAndConfirmTransaction(this.connection, transaction, [actualPayer]);
+            const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash();
+            const transaction = new Transaction({
+                feePayer: actualPayer.publicKey, 
+                recentBlockhash: blockhash
+            }).add(createIx);
+            
+            transaction.sign(actualPayer);
+            
+            // Use sendRawTransaction + polling instead of sendAndConfirmTransaction
+            // to avoid WebSocket issues in serverless environments (Vercel)
+            const sig = await this.connection.sendRawTransaction(transaction.serialize());
+            
+            // Poll for confirmation instead of using WebSocket subscription
+            await this.confirmTransactionPolling(sig, lastValidBlockHeight);
+            
             return sig;
         } catch (error) {
             console.error("Error creating identity:", error);
             throw error;
         }
+    }
+
+    // Helper to confirm transaction via polling (serverless-compatible)
+    private async confirmTransactionPolling(
+        signature: string, 
+        lastValidBlockHeight: number,
+        maxRetries = 30
+    ): Promise<void> {
+        for (let i = 0; i < maxRetries; i++) {
+            const status = await this.connection.getSignatureStatus(signature);
+            
+            if (status.value !== null) {
+                if (status.value.err) {
+                    throw new Error(`Transaction failed: ${JSON.stringify(status.value.err)}`);
+                }
+                if (status.value.confirmationStatus === 'confirmed' || 
+                    status.value.confirmationStatus === 'finalized') {
+                    return;
+                }
+            }
+            
+            // Check if blockhash expired
+            const blockHeight = await this.connection.getBlockHeight();
+            if (blockHeight > lastValidBlockHeight) {
+                throw new Error('Transaction expired: blockhash no longer valid');
+            }
+            
+            // Wait before next poll
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        throw new Error('Transaction confirmation timeout');
     }
 }
 
