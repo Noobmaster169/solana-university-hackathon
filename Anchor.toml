@@ -1,5 +1,4 @@
 [toolchain]
-anchor_version = "0.32.1"
 
 [features]
 resolution = true
@@ -9,7 +8,7 @@ skip-lint = false
 keystore = "4DS5K64SuWK6PmN1puZVtPouLWCqQDA3aE58MPPuDXu2"
 
 [programs.localnet]
-keystore = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+keystore = "74kKoQwsWTBjAaN29vbXP2Hp6o6Es98b3YpGyWoEL7wH"
 
 [registry]
 url = "https://api.apr.dev"

@@ -1,0 +1,75 @@
+name: Build and Deploy to Devnet
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  SOLANA_VERSION: '1.18.26'
+  ANCHOR_VERSION: '0.30.1'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Cache Solana
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/solana
+            ~/.local/share/solana
+          key: solana-${{ env.SOLANA_VERSION }}
+
+      - name: Install Solana
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v${{ env.SOLANA_VERSION }}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Install Anchor
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor --tag v${{ env.ANCHOR_VERSION }} anchor-cli --locked
+
+      - name: Build program
+        run: |
+          anchor build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: solana-program
+          path: |
+            target/deploy/*.so
+            target/deploy/*-keypair.json
+          retention-days: 30
+
+      - name: Deploy to Devnet (if keypair provided)
+        if: ${{ secrets.SOLANA_DEPLOYER_KEY }}
+        run: |
+          echo "${{ secrets.SOLANA_DEPLOYER_KEY }}" > deployer-keypair.json
+          solana config set --url devnet
+          solana config set --keypair deployer-keypair.json
+          solana airdrop 2 || true
+          solana program deploy target/deploy/keystore.so
+          rm deployer-keypair.json
+
+      - name: Show deployment info
+        run: |
+          echo "Program ID:"
+          solana-keygen pubkey target/deploy/keystore-keypair.json
+          echo ""
+          echo "Download the built program from the Artifacts above"
+          echo "Then deploy manually with:"
+          echo "  solana program deploy keystore.so"
+

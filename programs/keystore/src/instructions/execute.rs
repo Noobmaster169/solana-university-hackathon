@@ -5,6 +5,7 @@ use crate::state::*;
 use crate::error::KeystoreError;
 use crate::{Action, SignatureData};
 use crate::secp256r1;
+use std::collections::HashSet;
 
 #[derive(Accounts)]
 pub struct Execute<'info> {
@@ -83,18 +84,17 @@ pub fn handler(
         Action::Send { to, lamports } => {
             let recipient = ctx.accounts.recipient
                 .as_ref()
-                .ok_or(KeystoreError::InvalidKeyIndex)?;
+                .ok_or(KeystoreError::InvalidAccountData)?;
             
-            require!(
-                recipient.key() == to,
-                KeystoreError::InvalidKeyIndex
-            );
+            if recipient.key() != to {
+                return Err(KeystoreError::InvalidAccountData.into());
+            }
             
             // Check vault has sufficient balance
             let vault_balance = ctx.accounts.vault.lamports();
             require!(
                 vault_balance >= lamports,
-                KeystoreError::InvalidThreshold
+                KeystoreError::InsufficientFunds
             );
             
             // Ensure we maintain rent exemption (if needed)
@@ -102,7 +102,7 @@ pub fn handler(
             let min_balance = rent.minimum_balance(0);
             require!(
                 vault_balance.saturating_sub(lamports) >= min_balance || lamports == vault_balance,
-                KeystoreError::InvalidThreshold
+                KeystoreError::InsufficientFunds
             );
             
             let identity_key = identity.key();

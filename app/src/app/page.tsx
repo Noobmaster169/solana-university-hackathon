@@ -79,28 +79,61 @@ export default function Home() {
       }
 
       const deviceName = getDeviceName();
+      console.log("Creating passkey...");
       const credential = await createPasskey("keystore-user");
-      
-      // Create identity on-chain
-      const client = new KeystoreClient(connection);
-      const { tx, identity: newIdentity, vault: newVault } = await client.createIdentity(
-        credential.publicKey,
-        deviceName
-      );
-      
-      // Store credential locally
-      storeCredential({
-        credentialId: Array.from(credential.credentialId),
-        publicKey: Array.from(credential.publicKey),
-        owner: newIdentity.toBase58(),
+      console.log("Passkey created:", {
+        publicKeyLength: credential.publicKey.length,
+        credentialIdLength: credential.credentialId.length,
       });
       
-      setIdentity(newIdentity);
-      setVault(newVault);
-      setKeys([{ name: deviceName, pubkey: Buffer.from(credential.publicKey).toString("hex").slice(0, 16) + "..." }]);
-      setStatus("connected");
-      setSuccess("Wallet created successfully!");
-      setTimeout(() => setSuccess(null), 5000);
+      // Create identity on-chain
+      console.log("Creating identity on-chain...");
+      const client = new KeystoreClient(connection);
+      
+      try {
+        const { tx, identity: newIdentity, vault: newVault } = await client.createIdentity(
+          credential.publicKey,
+          deviceName
+        );
+        
+        console.log("Identity created:", {
+          tx,
+          identity: newIdentity.toBase58(),
+          vault: newVault.toBase58(),
+        });
+        
+        // Store credential locally
+        storeCredential({
+          credentialId: Array.from(credential.credentialId),
+          publicKey: Array.from(credential.publicKey),
+          owner: newIdentity.toBase58(),
+        });
+        
+        setIdentity(newIdentity);
+        setVault(newVault);
+        setKeys([{ name: deviceName, pubkey: Buffer.from(credential.publicKey).toString("hex").slice(0, 16) + "..." }]);
+        setStatus("connected");
+        setSuccess("Wallet created successfully!");
+        setTimeout(() => setSuccess(null), 5000);
+      } catch (txError: any) {
+        console.error("Transaction error:", txError);
+        
+        // Check if it's a funding issue
+        if (txError.message?.includes("debit") || txError.message?.includes("credit") || txError.message?.includes("airdrop")) {
+          throw new Error(
+            "⚠️ Devnet Setup Required\n\n" +
+            "The Solana program needs to be deployed and funded on devnet.\n\n" +
+            "Steps:\n" +
+            "1. Deploy the program: anchor deploy\n" +
+            "2. Fund your wallet with devnet SOL\n" +
+            "3. Try again\n\n" +
+            "See DEPLOYMENT_GUIDE.md for details.\n\n" +
+            "Your passkey was created successfully and can be used once the program is deployed!"
+          );
+        }
+        
+        throw txError;
+      }
     } catch (e: any) {
       console.error("Failed to create wallet:", e);
       setError(e.message || "Failed to create wallet. Please try again.");
@@ -120,22 +153,22 @@ export default function Home() {
       const lamports = Math.floor(parseFloat(sendAmount) * 1e9);
       const to = new PublicKey(sendTo);
       
-      // Fetch current nonce from identity account
+      // Get current nonce
       const identityAccount = await client.getIdentity(identity);
-      if (!identityAccount) throw new Error("Identity account not found");
+      const nonce = identityAccount?.nonce || 0;
       
-      // Build message with current nonce and sign with passkey
-      const message = client.buildMessage({ type: "send", to, lamports }, identityAccount.nonce);
+      // Sign with passkey
+      const message = client.buildMessage({ type: "send", to, lamports }, nonce);
       const signature = await signWithPasskey(
         new Uint8Array(stored.credentialId),
         message
       );
       
-      // Execute transaction (nonce is fetched automatically inside)
       await client.execute(identity, vault, {
         type: "send",
         to,
         lamports,
+        nonce,
         pubkey: new Uint8Array(stored.publicKey),
         signatures: [{ keyIndex: 0, signature }],
       });

@@ -24,9 +24,7 @@ export async function createPasskey(username: string): Promise<PasskeyCredential
         name: username,
         displayName: username,
       },
-      pubKeyCredParams: [
-        { alg: -7, type: "public-key" }, // ES256 (secp256r1/P-256) - required for passkeys
-      ],
+      pubKeyCredParams: [{ alg: -7, type: "public-key" }],
       authenticatorSelection: {
         authenticatorAttachment: "platform",
         userVerification: "required",
@@ -49,13 +47,12 @@ export async function signWithPasskey(
   credentialId: Uint8Array,
   message: Uint8Array
 ): Promise<Uint8Array> {
-  // CRITICAL: Use the message directly as the challenge
-  // WebAuthn will hash it internally with SHA-256
-  // The signature will be over SHA256(message), which matches on-chain verification
+  // Hash the message to 32 bytes for the challenge
+  const msgHash = await crypto.subtle.digest("SHA-256", message);
   
   const credential = await navigator.credentials.get({
     publicKey: {
-      challenge: message, // Use message directly, NOT pre-hashed
+      challenge: new Uint8Array(msgHash),
       rpId: window.location.hostname,
       allowCredentials: [{
         id: credentialId,
