@@ -30,28 +30,40 @@ jobs:
           rm -rf solana-release solana.tar.bz2
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
-      - name: Fix dependencies
+      - name: Fix dependencies for Rust 1.75
         run: |
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
           
-          # Remove any existing Cargo.lock (might be version 4)
+          # Remove existing Cargo.lock
           rm -f Cargo.lock
           
-          # Generate fresh Cargo.lock with Rust 1.75 (creates version 3)
+          # Generate fresh Cargo.lock
           cargo generate-lockfile
           
-          # Verify it's version 3
-          head -5 Cargo.lock
+          # Downgrade all packages that require Rust > 1.75
+          # borsh 1.6.0 requires 1.77
+          cargo update -p borsh --precise 1.5.1 || true
           
-          # Downgrade borsh
-          cargo update -p borsh@1.6.0 --precise 1.5.1 || cargo update -p borsh --precise 1.5.1 || true
+          # toml_datetime 0.7.4 requires 1.76
+          cargo update -p toml_datetime --precise 0.6.5 || true
           
-          # Downgrade other deps that might need newer Rust
+          # toml_edit might also need downgrade
+          cargo update -p toml_edit --precise 0.21.1 || true
+          
+          # indexmap 2.7+ requires newer Rust
           cargo update -p indexmap --precise 2.2.6 || true
-          cargo update -p hashbrown --precise 0.14.5 || true
+          
+          # hashbrown might need downgrade
+          cargo update -p hashbrown --precise 0.14.3 || true
+          
+          # zerocopy might need downgrade  
           cargo update -p zerocopy --precise 0.7.32 || true
           
-          echo "Dependencies fixed"
+          # winnow might need downgrade
+          cargo update -p winnow --precise 0.5.40 || true
+          
+          echo "=== Dependency versions ==="
+          grep -E "^(name|version)" Cargo.lock | head -40
 
       - name: Build program
         run: |
