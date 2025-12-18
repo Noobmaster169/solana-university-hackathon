@@ -54,15 +54,16 @@ jobs:
             target/deploy/*-keypair.json
           retention-days: 30
 
-      - name: Deploy to Devnet (if keypair provided)
-        if: ${{ secrets.SOLANA_DEPLOYER_KEY }}
-        run: |
-          echo "${{ secrets.SOLANA_DEPLOYER_KEY }}" > deployer-keypair.json
-          solana config set --url devnet
-          solana config set --keypair deployer-keypair.json
-          solana airdrop 2 || true
-          solana program deploy target/deploy/keystore.so
-          rm deployer-keypair.json
+      # Automatic deployment disabled - download artifact and deploy manually
+      # - name: Deploy to Devnet (if keypair provided)
+      #   if: ${{ secrets.SOLANA_DEPLOYER_KEY != '' }}
+      #   run: |
+      #     echo "${{ secrets.SOLANA_DEPLOYER_KEY }}" > deployer-keypair.json
+      #     solana config set --url devnet
+      #     solana config set --keypair deployer-keypair.json
+      #     solana airdrop 2 || true
+      #     solana program deploy target/deploy/keystore.so
+      #     rm deployer-keypair.json
 
       - name: Show deployment info
         run: |
