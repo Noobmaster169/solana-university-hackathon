@@ -16,48 +16,43 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libssl-dev libudev-dev curl wget bzip2
+          sudo apt-get install -y build-essential pkg-config libssl-dev libudev-dev wget bzip2
 
-      - name: Install Rust 1.79
-        uses: dtolnay/rust-toolchain@1.79.0
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Download Solana 1.18.22
         run: |
-          echo "Downloading Solana 1.18.22..."
-          wget -q --show-progress https://github.com/solana-labs/solana/releases/download/v1.18.22/solana-release-x86_64-unknown-linux-gnu.tar.bz2 -O solana.tar.bz2
-          echo "Download complete:"
-          ls -lh solana.tar.bz2
-
-      - name: Install Solana
-        run: |
+          wget -q https://github.com/solana-labs/solana/releases/download/v1.18.22/solana-release-x86_64-unknown-linux-gnu.tar.bz2 -O solana.tar.bz2
           tar -xjf solana.tar.bz2
           mkdir -p $HOME/.local/share/solana/install/active_release
           cp -r solana-release/* $HOME/.local/share/solana/install/active_release/
           rm -rf solana-release solana.tar.bz2
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
-      - name: Verify tools
+      - name: Fix dependency versions
         run: |
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-          echo "=== Versions ==="
-          solana --version
-          cargo-build-sbf --version
-          rustc --version
-
-      - name: Downgrade incompatible dependencies
-        run: |
-          echo "Fixing dependency versions..."
-          cargo update -p borsh --precise 1.5.1 || true
-          cargo update -p indexmap --precise 2.2.6 || true
-          echo "Dependencies updated"
+          
+          # Generate Cargo.lock first
+          cargo generate-lockfile
+          
+          # Downgrade borsh to version compatible with Rust 1.75
+          echo "Downgrading borsh..."
+          cargo update -p borsh@1.6.0 --precise 1.5.1
+          
+          # Downgrade other potentially incompatible deps
+          cargo update -p indexmap --precise 2.2.6 2>/dev/null || true
+          cargo update -p hashbrown --precise 0.14.5 2>/dev/null || true
+          
+          echo "Cargo.lock updated"
+          grep -A1 'name = "borsh"' Cargo.lock | head -4
 
       - name: Build program
         run: |
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
           cd programs/keystore
-          echo "Building..."
           cargo-build-sbf --sbf-out-dir ../../target/deploy
-          echo "Done!"
           
       - name: Verify build
         run: |
@@ -72,7 +67,7 @@ jobs:
             target/deploy/keystore.so
             target/deploy/keystore-keypair.json
           
-      - name: Show info
+      - name: Show deploy info
         run: |
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
           echo "========================================="
@@ -81,4 +76,4 @@ jobs:
           echo "Program ID:"
           solana-keygen pubkey target/deploy/keystore-keypair.json
           echo ""
-          echo "Deploy with: solana program deploy keystore.so"
+          echo "Deploy: solana program deploy keystore.so"
