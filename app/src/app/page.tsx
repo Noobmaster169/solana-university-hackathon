@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { Connection, PublicKey, clusterApiUrl } from "@solana/web3.js";
 import { Fingerprint, Plus, Send, Shield, Loader2, Copy, ExternalLink, CheckCircle2, Clock, ArrowUpRight, ArrowDownLeft, Settings, Key, UserPlus } from "lucide-react";
 import { createPasskey, signWithPasskey, getStoredCredential, storeCredential } from "@/lib/passkey";
@@ -276,12 +277,12 @@ export default function Home() {
         <div className="max-w-md w-full space-y-8 text-center relative z-10">
           <div className="space-y-4">
             <div className="flex justify-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-blue-500 rounded-3xl flex items-center justify-center rotate-12 hover:rotate-0 transition-transform duration-300">
-                <Fingerprint className="w-12 h-12" />
+              <div className="w-20 h-20 rounded-3xl flex items-center justify-center hover:scale-110 transition-transform duration-300">
+                <Image src="/keyless.png" alt="Keyless" width={80} height={80} className="rounded-2xl" />
               </div>
             </div>
             <h1 className="text-6xl font-bold tracking-tight bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-              Keystore
+              Keyless
             </h1>
             <p className="text-2xl text-gray-400">Solana wallet. No seed phrase.</p>
           </div>
@@ -353,9 +354,12 @@ export default function Home() {
       <div className="max-w-lg mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-            Keystore
-          </h1>
+          <div className="flex items-center gap-3">
+            <Image src="/keyless.png" alt="Keyless" width={32} height={32} className="rounded-lg" />
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+              Keyless
+            </h1>
+          </div>
           <div className="flex items-center gap-2 text-sm text-gray-400">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             Devnet
