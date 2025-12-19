@@ -5,7 +5,7 @@ import { Connection, PublicKey, clusterApiUrl } from "@solana/web3.js";
 import { Fingerprint, Plus, Send, Shield, Loader2, Copy, ExternalLink, CheckCircle2, Clock, ArrowUpRight, ArrowDownLeft, Settings, Key, UserPlus } from "lucide-react";
 import { createPasskey, signWithPasskey, getStoredCredential, storeCredential } from "@/lib/passkey";
 import { getIdentityPDA, getVaultPDA } from "@/lib/keystore";
-import { createIdentity, parseCreateIdentityResponse, executeTransaction, getIdentityInfo, getTransactionHistory } from "@/lib/api";
+import { createIdentity, parseCreateIdentityResponse, executeTransaction, getIdentityInfo, getTransactionHistory, requestAirdrop } from "@/lib/api";
 import { formatAddress, lamportsToSOL } from "@/lib/solana";
 import { buildMessage } from "@/lib/message";
 import { KeystoreClient } from "@/lib/keystore-client";
@@ -241,15 +241,16 @@ export default function Home() {
 
   async function handleAirdrop() {
     if (!vault) return;
+    setError(null);
     try {
-      const signature = await connection.requestAirdrop(vault, 1000000000); // 1 SOL
-      await connection.confirmTransaction(signature);
-      setSuccess("Airdropped 1 SOL!");
+      const result = await requestAirdrop(vault);
+      setSuccess(`Airdropped ${result.amount} SOL!`);
       setTimeout(() => setSuccess(null), 5000);
       fetchBalance();
+      fetchHistory();
     } catch (e: any) {
       console.error("Airdrop failed:", e);
-      setError("Airdrop failed. Rate limit may have been exceeded.");
+      setError(e.message || "Airdrop failed. Please try again later.");
       setTimeout(() => setError(null), 5000);
     }
   }
