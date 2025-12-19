@@ -18,7 +18,7 @@ pub struct Execute<'info> {
         bump = identity.vault_bump,
     )]
     /// CHECK: PDA vault
-    pub vault: SystemAccount<'info>,
+    pub vault: UncheckedAccount<'info>,
     
     /// CHECK: Optional recipient for Send action
     #[account(mut)]
@@ -35,8 +35,13 @@ pub fn handler(
     ctx: Context<Execute>,
     action: Action,
     sigs: Vec<SignatureData>,
+    signed_data: Vec<u8>,
 ) -> Result<()> {
     let identity = &mut ctx.accounts.identity;
+
+    msg!("execute");
+    msg!("Action: {:?}", action);
+    msg!("signatures: {:?}", sigs);
     
     // Validate signatures array
     require!(
@@ -50,35 +55,41 @@ pub fn handler(
         KeystoreError::ThresholdNotMet
     );
     
+    msg!("checking duplicate key indices");
     // Check for duplicate key indices
     let mut used_keys = std::collections::HashSet::new();
     for sig in &sigs {
+        msg!("sig key index: {}", sig.key_index);
+        msg!("signature: {:?}", sig.signature);
+        msg!("sig recovery id: {}", sig.recovery_id);
         require!(
             used_keys.insert(sig.key_index),
             KeystoreError::SignatureVerificationFailed
         );
     }
     
-    // Build message that was signed (action + nonce)
-    let message = build_message(&action, identity.nonce)?;
-    
     // Verify each signature via secp256r1 precompile introspection
+    msg!("verifying signatures");
     for sig in &sigs {
         let key = identity.keys
             .get(sig.key_index as usize)
             .ok_or(KeystoreError::InvalidKeyIndex)?;
         
+        msg!("verifying signature for key index {}", sig.key_index);
         secp256r1::verify_secp256r1_signature(
             &ctx.accounts.instructions,
             &key.pubkey,
-            &message,
+            &signed_data,
             &sig.signature,
         )?;
+        msg!("signature verification passed");
     }
     
     // Increment nonce (before execution to prevent reentrancy)
     identity.nonce += 1;
     
+    msg!("executing action");
+    msg!("vault key: {}", ctx.accounts.vault.key());
     // Execute action
     match action {
         Action::Send { to, lamports } => {
@@ -89,6 +100,9 @@ pub fn handler(
             if recipient.key() != to {
                 return Err(KeystoreError::InvalidAccountData.into());
             }
+
+            msg!("vault balance: {}", ctx.accounts.vault.lamports());
+            msg!("sending {} lamports to {}", lamports, to);
             
             // Check vault has sufficient balance
             let vault_balance = ctx.accounts.vault.lamports();
@@ -97,6 +111,7 @@ pub fn handler(
                 KeystoreError::InsufficientFunds
             );
             
+            msg!("checking rent exemption");
             // Ensure we maintain rent exemption (if needed)
             let rent = Rent::get()?;
             let min_balance = rent.minimum_balance(0);
@@ -112,6 +127,7 @@ pub fn handler(
                 &[identity.vault_bump],
             ];
             
+            msg!("transferring lamports");
             system_program::transfer(
                 CpiContext::new_with_signer(
                     ctx.accounts.system_program.to_account_info(),
